@@ -14,6 +14,11 @@ st.write(""" Choose the fruits you want in your custom Smoothie! """)
 name_on_order = st.text_input('Name on Smoothie:')
 st.write('The name on your Smoothie will be:', name_on_order)
 
+# Ensure name_on_order is not null
+if name_on_order is None:
+    st.error("Please enter your name to proceed.")
+    st.stop()
+
 session = get_active_session()
 my_dataframe = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME'),col('SEARCH_ON'))
 #st.dataframe(data=my_dataframe, use_container_width=True)
@@ -28,7 +33,7 @@ ingredients_list = st.multiselect(
     'Choose up to 5 ingredients:'
     , my_dataframe
     , max_selections=5
-    )
+)
 
 if ingredients_list:
     #st.write(ingredients_list)
