@@ -35,33 +35,33 @@ def create_snowflake_session():
 # Snowflake 세션을 가져옵니다.
 def get_snowflake_session():
     try:
-        session = get_active_session()
-        if session is None:
-            raise SnowparkClientExceptionMessages.SERVER_NO_DEFAULT_SESSION()
+        session = create_snowflake_session()
         return session
     except Exception as e:
         st.error(f"Error getting Snowflake session: {str(e)}")
 
 session = get_snowflake_session()
-my_dataframe = session.table("fruit_options").select(col('FRUIT_NAME'))
+if session:
+    my_dataframe = session.execute("SELECT FRUIT_NAME FROM fruit_options")
+    ingredients_list = st.multiselect(
+        'Choose up to 5 ingredients:'
+        , [row[0] for row in my_dataframe.fetchall()]  # fetchall()을 사용하여 데이터를 가져옵니다.
+        , max_selections=5
+        )
 
-ingredients_list = st.multiselect(
-    'Choose up to 5 ingredients:'
-    , my_dataframe.collect()  # collect()를 사용하여 데이터를 가져옵니다.
-    , max_selections=5
-    )
+    if ingredients_list:
+        st.write(ingredients_list)
+        st.text(ingredients_list)
+        
+        ingredients_string = ', '.join(ingredients_list)
 
-if ingredients_list:
-    st.write(ingredients_list)
-    st.text(ingredients_list)
-    
-    ingredients_string = ', '.join(ingredients_list)
+        my_insert_stmt = f"""INSERT INTO smoothies.public.orders(ingredients)
+                            VALUES ('{ingredients_string}')"""
 
-    my_insert_stmt = f"""INSERT INTO smoothies.public.orders(ingredients)
-                        VALUES ('{ingredients_string}')"""
-
-    time_to_insert = st.button('Submit Order')
-    
-    if time_to_insert:
-        session.execute(my_insert_stmt)
-        st.success('Your Smoothie is ordered!', icon="✅")
+        time_to_insert = st.button('Submit Order')
+        
+        if time_to_insert:
+            session.execute(my_insert_stmt)
+            st.success('Your Smoothie is ordered!', icon="✅")
+else:
+    st.error("Snowflake session is not available.")
