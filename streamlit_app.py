@@ -65,3 +65,8 @@ if session:
             st.success('Your Smoothie is ordered!', icon="✅")
 else:
     st.error("Snowflake session is not available.")
+
+# New section to display fruityvice nutrition information
+import requests
+fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
+st.text(fruityvice_response)
