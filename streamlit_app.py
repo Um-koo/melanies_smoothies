@@ -1,7 +1,9 @@
 # Import python packages
 import streamlit as st
-from snowflake.connector import connect
+import pandas as pd
 from snowflake.snowpark.context import get_active_session
+from snowflake.connector import connect
+from snowflake.snowpark.functions import col
 from snowflake.snowpark.session import SnowparkClientExceptionMessages
 import requests
 
@@ -12,66 +14,42 @@ st.write(""" Choose the fruits you want in your custom Smoothie! """)
 name_on_order = st.text_input('Name on Smoothie:')
 st.write('The name on your Smoothie will be:', name_on_order)
 
-# Snowflake 연결 설정
-snowflake_username = 'jhum'
-snowflake_password = '!Q2w3e4r'
-snowflake_account = 'XZGJBJC-QC25280'
-snowflake_database = 'SMOOTHIES'
-snowflake_schema = 'PUBLIC'
+session = get_active_session()
+my_dataframe = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME'),col('SEARCH_ON'))
+#st.dataframe(data=my_dataframe, use_container_width=True)
+#st.stop()
 
-# Snowflake에 연결하여 세션을 만듭니다.
-def create_snowflake_session():
-    try:
-        conn = connect(
-            user=snowflake_username,
-            password=snowflake_password,
-            account=snowflake_account,
-            database=snowflake_database,
-            schema=snowflake_schema
-        )
-        return conn.cursor()
-    except Exception as e:
-        st.error(f"Error creating Snowflake session: {str(e)}")
+# Convert the Snowpark Dataframe to a Pandas Dataframe so we can use the LOC function
+pd_df=my_dataframe.to_pandas()
+#st.dataframe(pd_df)
+#st.stop()
 
-# Snowflake 세션을 가져옵니다.
-def get_snowflake_session():
-    try:
-        session = create_snowflake_session()
-        return session
-    except Exception as e:
-        st.error(f"Error getting Snowflake session: {str(e)}")
+ingredients_list = st.multiselect(
+    'Choose up to 5 ingredients:'
+    , my_dataframe
+    , max_selections=5
+    )
 
-session = get_snowflake_session()
-if session:
-    my_dataframe = session.execute("SELECT FRUIT_NAME FROM fruit_options")
-    ingredients_list = st.multiselect(
-        'Choose up to 5 ingredients:'
-        , [row[0] for row in my_dataframe.fetchall()]  # fetchall()을 사용하여 데이터를 가져옵니다.
-        , max_selections=5
-        )
-    
-    if ingredients_list:
-        st.write(ingredients_list)
-        st.text(ingredients_list)
-        ingredients_string = ' '.join(ingredients_list)  # 각 과일 이름 사이에 공백 추가
+if ingredients_list:
+    #st.write(ingredients_list)
+    #st.text(ingredients_list)
+    ingredients_string = ''
 
-        for fruit_chosen in ingredients_list:
-            st.subheader(fruit_chosen + 'Nutrition Information')
-            fruityvice_response = requests.get("https://fruityvice.com/api/fruit/" + fruit_chosen)
-            fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
+    for fruit_chosen in ingredients_list:
+        ingredients_string += fruit_chosen + ' '
 
-        my_insert_stmt = f"""INSERT INTO smoothies.public.orders(ingredients)
-                            VALUES ('{ingredients_string}')"""
-
-        time_to_insert = st.button('Submit Order')
+        search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
+        st.write('The search value for ', fruit_chosen, ' is ', search_on, '.')
         
-        if time_to_insert:
-            session.execute(my_insert_stmt)
-            st.success('Your Smoothie is ordered!', icon="✅")
-else:
-    st.error("Snowflake session is not available.")
+        st.subheader(fruit_chosen + ' Nutrition Information')
+        fruityvice_response = requests.get("https://www.fruityvice.com/api/fruit/" + fruit_chosen)
+        fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
 
-# New section to display fruityvice nutrition information
-if 'watermelon' in ingredients_list:  # 선택된 과일 리스트에 watermelon이 포함되어 있는지 확인
-    fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
-    fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
+    # Move the code to insert into the database inside the if statement for time_to_insert button
+    time_to_insert = st.button('Submit Order')
+    if time_to_insert:
+        # Use name_on_order here
+        my_insert_stmt = """ insert into smoothies.public.orders(name_on_order, ingredients)
+            values ('""" + name_on_order + "', '" + ingredients_string + """')"""
+        session.sql(my_insert_stmt).collect()
+        st.success('Your Smoothie is ordered!', icon="✅")
