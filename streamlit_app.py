@@ -72,5 +72,6 @@ else:
     st.error("Snowflake session is not available.")
 
 # New section to display fruityvice nutrition information
-fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
-fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
+if 'watermelon' in ingredients_list:  # 선택된 과일 리스트에 watermelon이 포함되어 있는지 확인
+    fruityvice_response = requests.get("https://fruityvice.com/api/fruit/watermelon")
+    fv_df = st.dataframe(data=fruityvice_response.json(), use_container_width=True)
